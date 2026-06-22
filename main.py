@@ -25,11 +25,11 @@ def main():
     fast_rotating_90_deg_with_makers_chank = full_seq[925:1107]
     smooth_moves_with_markers_chank = full_seq[1107:1346]
 
-    reader.save_video(full_seq, 'data/output/videos/sync_video_full.mp4', target_height=320)
-    reader.save_video(smooth_move_no_markers_chank, 'data/output/videos/sync_video_smooth_moves_no_markers.mp4')
-    reader.save_video(rotating_on_one_point_chank, 'data/output/videos/sync_video_rotating_on_one_point.mp4')
-    reader.save_video(fast_rotating_90_deg_with_makers_chank, 'data/output/videos/sync_video_fast_rotating_90_deg.mp4')
-    reader.save_video(smooth_moves_with_markers_chank, 'data/output/videos/sync_video_smooth_moves_with_markers.mp4')
+    # reader.save_video(full_seq, 'data/output/videos/sync_video_full.mp4', target_height=320)
+    # reader.save_video(smooth_move_no_markers_chank, 'data/output/videos/sync_video_smooth_moves_no_markers.mp4')
+    # reader.save_video(rotating_on_one_point_chank, 'data/output/videos/sync_video_rotating_on_one_point.mp4')
+    # reader.save_video(fast_rotating_90_deg_with_makers_chank, 'data/output/videos/sync_video_fast_rotating_90_deg.mp4')
+    # reader.save_video(smooth_moves_with_markers_chank, 'data/output/videos/sync_video_smooth_moves_with_markers.mp4')
 
     # ==========================================
     # 3. Калибровка сцены и доски (T_L_B)

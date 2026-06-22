@@ -3,3 +3,4 @@ data/3d/
 .venv/
 .idea/
 sqlite-tools-win-x64-3530200/
+__pycache__/

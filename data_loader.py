@@ -218,7 +218,7 @@ class BagDataReader:
             # Мы делаем это здесь, так как финальное разрешение (ширина) зависит от aspect_ratio всех камер
             if video_writer is None:
                 height, width = combined_view.shape[:2]
-                fourcc = cv2.VideoWriter.fourcc(*"avc1")
+                fourcc = cv2.VideoWriter.fourcc(*"mp4v")
                 video_writer = cv2.VideoWriter(
                     output_path, fourcc, fps, (width, height)
                 )

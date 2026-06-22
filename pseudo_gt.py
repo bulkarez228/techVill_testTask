@@ -143,11 +143,7 @@ def build_and_save_pseudo_gt(inside_out_path, outside_in_path, output_path):
         print("Ошибка: Входные файлы траекторий для Pseudo-GT пусты.")
         return
 
-    # 1. Измеряем погрешность будущего эталона
-    rms_t, rms_r = evaluate_pseudo_gt_accuracy(inside_out_poses, outside_in_poses)
-    print(f"\n[Pseudo-GT Валидация] Оцененная погрешность эталона:")
-    print(f"-> RMS Ошибка трансляции: {rms_t * 1000:.2f} мм")
-    print(f"-> RMS Ошибка вращения: {rms_r:.3f} градусов")
+
 
     # 2. Калибруем жесткое смещение по всем перекрывающимся данным
     T_id1_S = calibrate_head_to_sensor(inside_out_poses, outside_in_poses)
@@ -166,11 +162,22 @@ def build_and_save_pseudo_gt(inside_out_path, outside_in_path, output_path):
     # 4. Сглаживание скользящим окном на SE(3) для подавления дрожания маркеров
     smoothed_pseudo_gt = smooth_trajectory_sliding_window(pseudo_gt, window_size=5)
 
+    # Измеряем погрешность эталона
+    rms_t_inside_out, rms_r_inside_out = evaluate_pseudo_gt_accuracy(inside_out_poses, smoothed_pseudo_gt)
+    rms_t_outside_in, rms_r_outside_in = evaluate_pseudo_gt_accuracy(outside_in_poses, smoothed_pseudo_gt)
+    rms_t_base, rms_r_base = evaluate_pseudo_gt_accuracy(inside_out_poses, outside_in_poses)
+
+    print(f"\n[Pseudo-GT Валидация]:")
+    print(f"-> СКО исходных траекторий:  {rms_t_base * 1000:.2f} мм | {rms_r_base:.3f}°")
+    print(f"-> СКО псевдо-эталона с outside_in:       {rms_t_inside_out * 1000:.2f} мм | {rms_r_inside_out:.3f}°")
+    print(f"-> СКО псевдо-эталона с inside_out:       {rms_t_outside_in * 1000:.2f} мм | {rms_r_base:.3f}°")
+
+    # Проверка на перекос (bias)
+    bias_t = abs(rms_t_outside_in - rms_t_inside_out) * 1000
+    print(f"-> Дисбаланс трансляции (смещение к источнику): {bias_t:.2f} мм")
+
     # 5. Запись в файл
     with open(output_path, 'w') as f:
-        f.write("# Pseudo-Ground-Truth Trajectory (Fused & Smoothed)\n")
-        f.write(f"# Estimated Precision RMS Translation: {rms_t * 1000:.2f} mm\n")
-        f.write(f"# Estimated Precision RMS Rotation: {rms_r:.3f} deg\n")
         for t in sorted(smoothed_pseudo_gt.keys()):
             f.write(T_to_TUM_format(smoothed_pseudo_gt[t], t) + "\n")
 
