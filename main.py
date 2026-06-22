@@ -193,7 +193,7 @@ def main():
         # 4 трека одометрии по вашим чанкам:
         "VO: Движение без маркеров": "data/output/trajectory/camera_only_aligned_smooth_no_markers.txt",
         "VO: Вращение на месте": "data/output/trajectory/camera_only_aligned_rotating_on_one_point.txt",
-        "VO: Быстрый разворот 90°": "data/output/trajectory/camera_only_trajectory_fast_rotating_90.txt",
+        "VO: Быстрый разворот 90°": "data/output/trajectory/camera_only_aligned_fast_rotating_90.txt",
         "VO: Движение с маркерами": "data/output/trajectory/camera_only_aligned_smooth_with_markers.txt"
     }
 

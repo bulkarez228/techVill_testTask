@@ -49,8 +49,8 @@ def run_open3d_rgbd_odometry(sync_data, K_small):
 
     # 1. Задаем уменьшенное (в 2 раза) разрешение относительно оригинального кадра глубины
     # Оригинал глубины: 848x530 -> Цель: 424x265 (в 4 раза меньше пикселей)
-    target_w = 424
-    target_h = 265
+    target_w = 848
+    target_h = 530
 
     orig_h, orig_w = sync_data[0]['small_rgb'].shape[:2]
 
@@ -77,7 +77,7 @@ def run_open3d_rgbd_odometry(sync_data, K_small):
     option = o3d.pipelines.odometry.OdometryOption()
     # Ограничиваем количество итераций на каждом уровне пирамиды (уровни: грубый -> точный)
     # По умолчанию итераций значительно больше, уменьшение до [10, 5, 2] дает огромный прирост скорости
-    option.iteration_number_per_pyramid_level = o3d.utility.IntVector([10, 5, 2])
+    option.iteration_number_per_pyramid_level = o3d.utility.IntVector([30, 20, 10])
     option.depth_diff_max = 0.03  # максимальная разница глубин для сопоставления точек (3 см)
 
     jacobian = o3d.pipelines.odometry.RGBDOdometryJacobianFromHybridTerm()
@@ -115,10 +115,10 @@ def run_open3d_rgbd_odometry(sync_data, K_small):
 
         # Создаем RGB-D образы
         rgbd_src = o3d.geometry.RGBDImage.create_from_color_and_depth(
-            color_src, depth_src, depth_scale=1000.0, depth_trunc=3.0, convert_rgb_to_intensity=False
+            color_src, depth_src, depth_scale=1000.0, depth_trunc=3.0, convert_rgb_to_intensity=True
         )
         rgbd_dst = o3d.geometry.RGBDImage.create_from_color_and_depth(
-            color_dst, depth_dst, depth_scale=1000.0, depth_trunc=3.0, convert_rgb_to_intensity=False
+            color_dst, depth_dst, depth_scale=1000.0, depth_trunc=3.0, convert_rgb_to_intensity=True
         )
 
         # Оценка смещения
