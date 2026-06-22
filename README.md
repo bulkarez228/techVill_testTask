@@ -5,7 +5,8 @@
     Для успешного чтения bag файла необходимо его проверить на наличие ошибок и устранить их, если они имеются. Для этого можно воспользоваться стандратной утилитой ```sqlite-tools``` вызовом ```sqlite3 busted.db3 ".recover" | sqlite3 restored.db3```.
     
     После синхронизации кадров для всех трех источников получаем следующую запись:
-    [sync_video_full.mp4](data%2Foutput%2Fvideos%2Fsync_video_full.mp4)
+   
+https://github.com/user-attachments/assets/2a5d8f1d-98f6-4e8b-874e-92975d580f63
 
 - Разметка данных:
     
