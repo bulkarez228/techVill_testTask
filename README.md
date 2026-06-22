@@ -74,3 +74,4 @@ https://github.com/user-attachments/assets/2a5d8f1d-98f6-4e8b-874e-92975d580f63
 - Плавное движение c маркерной доской в кадре малой камеры.
     <img width="800" height="615" alt="odometry_smooth_move_with_markers" src="https://github.com/user-attachments/assets/33ed91d4-1a77-4e7c-aca6-3d98e195457a" />
 
+Как можно увидеть из визуализаций траектории лежат вдалеке от псевдо-эталона и лишь отдаленно напомниают его, при это в чанках с поворотом ситауция выглядит сильно хуже, нежели с движением.
