@@ -79,5 +79,6 @@ https://github.com/user-attachments/assets/2a5d8f1d-98f6-4e8b-874e-92975d580f63
 ### Outside-in трекинг
 Детекция производилась через метод ```cv2.aruco.ArucoDetector.detectMarkers()``` бибилиотеки OpenCV.
 Визуализируем полученную траекторию:
+
 <img width="800" height="615" alt="outside_in_trajectory" src="https://github.com/user-attachments/assets/78eecc50-25fe-4da1-966e-f0734f507c25" />
 
