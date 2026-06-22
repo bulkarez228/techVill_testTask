@@ -1,0 +1,5 @@
+data/raw/
+data/3d/
+.venv/
+.idea/
+sqlite-tools-win-x64-3530200/
