@@ -1,5 +1,3 @@
-
-https://github.com/user-attachments/assets/7aac8b1d-39a3-4862-8ebf-446e18854633
 # Презентация результатов
 ## Часть 0
 ### Чтение даных:
@@ -46,5 +44,6 @@ https://github.com/user-attachments/assets/2a5d8f1d-98f6-4e8b-874e-92975d580f63
     -> Дисбаланс трансляции (смещение к источнику): 8.00 мм
    
   Из оценки погрешностей следует, что псевдо-эталон лег между двумя траекториями, но имеет сильный перекос к траектории outside_in. Объясняется это тем, что точек в данной траектории сильно больше, чем в траектории inside_out. Убедимся в этом наглядно, визуализировав данные траектории.
+<img width="800" height="681" alt="pseudo_gt_trajectory_preview-ezgif com-video-to-gif-converter" src="https://github.com/user-attachments/assets/2106a096-224f-4ece-96cf-4885e94f7ad0" />
 
 
