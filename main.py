@@ -31,155 +31,155 @@ def main():
     # reader.save_video(fast_rotating_90_deg_with_makers_chank, 'data/output/videos/sync_video_fast_rotating_90_deg.mp4')
     # reader.save_video(smooth_moves_with_markers_chank, 'data/output/videos/sync_video_smooth_moves_with_markers.mp4')
 
-    # ==========================================
-    # 3. Калибровка сцены и доски (T_L_B)
-    # ==========================================
-    print("\n[Калибровка] Ищем маркеры доски (20, 21, 23) большой камерой...")
-    stable_board_poses = None
-    T_L_B = None
-    all_T_L_B = []
-
-    for frame in full_seq:
-        img = frame['large_rgb']
-        poses = estimate_aruco_pose(img, reader.K_large, reader.D_large, marker_size=0.09)
-
-        if 20 in poses and 21 in poses and 23 in poses:
-            if stable_board_poses is None:
-                stable_board_poses = poses
-
-            P_20 = poses[20][1].flatten()
-            P_21 = poses[21][1].flatten()
-            P_23 = poses[23][1].flatten()
-
-            X_B = (P_21 - P_20) / np.linalg.norm(P_21 - P_20)
-            v1 = P_21 - P_20
-            v2 = P_23 - P_20
-            Z_temp = np.cross(v1, v2)
-            if np.dot(Z_temp, -P_20) < 0:
-                Z_temp = -Z_temp
-            Z_B = Z_temp / np.linalg.norm(Z_temp)
-            Y_B = np.cross(Z_B, X_B)
-
-            mat_T = np.eye(4)
-            mat_T[:3, 0] = X_B
-            mat_T[:3, 1] = Y_B
-            mat_T[:3, 2] = Z_B
-            mat_T[:3, 3] = P_20
-            all_T_L_B.append(mat_T)
-
-            if len(all_T_L_B) >= 30:
-                break
-
-    if not all_T_L_B:
-        print("Ошибка: Калибровочная доска не обнаружена. Пропускаем маркерные траектории.")
-        return
-
-    # Усредняем и ортогонализируем T_L_B
-    mean_T_L_B = np.mean(all_T_L_B, axis=0)
-    U, _, Vt = np.linalg.svd(mean_T_L_B[:3, :3])
-    mean_T_L_B[:3, :3] = U @ Vt
-    T_L_B = mean_T_L_B
-    T_B_L = np.linalg.inv(T_L_B)
-    print("-> Положение доски T_B_L успешно рассчитано.")
-
-    # ==========================================
-    # 4. РАСЧЕТ ТРАЕКТОРИИ 1: Outside-In (Маркер id1)
-    # ==========================================
-    print("\n[Траектория 1] Запуск Outside-In трекинга...")
-    outside_in_lines = []
-    for frame in full_seq:
-        timestamp = frame['time']
-        img = frame['large_rgb']
-        poses = estimate_aruco_pose(img, reader.K_large, reader.D_large, marker_size=0.09)
-        if 1 in poses:
-            rvec, tvec = poses[1]
-            T_L_id1 = rvec_tvec_to_T(rvec, tvec)
-            T_B_id1 = T_B_L @ T_L_id1
-            outside_in_lines.append(T_to_TUM_format(T_B_id1, timestamp))
-
-    out_file_1 = "data/output/trajectory/outside_in_trajectory.txt"
-    with open(out_file_1, "w") as f:
-        for line in outside_in_lines:
-            f.write(line + "\n")
-    print(f"-> Сохранено {len(outside_in_lines)} точек в {out_file_1}")
-
-    # ==========================================
-    # 5. РАСЧЕТ ТРАЕКТОРИИ 2: Inside-Out (Доска стола)
-    # ==========================================
-    board_corners_3d = calibrate_board_corners_3d(T_L_B, stable_board_poses, marker_size=0.09)
-    print(f"-> Откалиброваны 3D углы для {len(board_corners_3d)} маркеров стола.")
-    print("\n[Траектория 2] Запуск Inside-Out самолокализации...")
-    inside_out_lines = run_inside_out_localization(
-        fast_rotating_90_deg_with_makers_chank+smooth_moves_with_markers_chank, board_corners_3d, reader.K_small, reader.D_small
-    )
-    out_file_2 = "data/output/trajectory/inside_out_trajectory.txt"
-    with open(out_file_2, "w") as f:
-        for line in inside_out_lines:
-            f.write(line + "\n")
-    print(f"-> Сохранено {len(inside_out_lines)} точек в {out_file_2}")
-
-    # ==========================================
-    # СБОРКА PSEUDO GROUND TRUTH (НОВЫЙ ШАГ)
-    # ==========================================
-    print("\n[Pseudo-GT] Сборка референсной траектории-эталона со сглаживанием...")
-    build_and_save_pseudo_gt(
-        inside_out_path="data/output/trajectory/inside_out_trajectory.txt",
-        outside_in_path="data/output/trajectory/outside_in_trajectory.txt",
-        output_path="data/output/trajectory/pseudo_gt_trajectory.txt"
-    )
-
-
-    # =========================================================================
-    # 6. ПОСЛЕДОВАТЕЛЬНЫЙ РАСЧЕТ ОДОМЕТРИИ ДЛЯ ВСЕХ 4-Х ЧАНКОВ
-    # =========================================================================
-    # Описываем ваши 4 выделенных чанка
-    chunks_dict = {
-        "smooth_no_markers": {
-            "data": smooth_move_no_markers_chank,
-            "title": "Движение без маркеров"
-        },
-        "rotating_on_one_point": {
-            "data": rotating_on_one_point_chank,
-            "title": "Вращение на месте"
-        },
-        "fast_rotating_90": {
-            "data": fast_rotating_90_deg_with_makers_chank,
-            "title": "Быстрый разворот 90° с маркерами"
-        },
-        "smooth_with_markers": {
-            "data": smooth_moves_with_markers_chank,
-            "title": "Движение с маркерами"
-        }
-    }
-
-    print("\n" + "=" * 80)
-    print("ЗАПУСК ВИЗУАЛЬНОЙ ОДОМЕТРИИ (Open3D) ДЛЯ 4-Х ВЫДЕЛЕННЫХ ЧАНКОВ ПО ОЧЕРЕДИ")
-    print("=" * 80)
-
-    for key, chunk_info in chunks_dict.items():
-        print(f"\n[Чанк: {chunk_info['title']}] Расчет RGB-D одометрии...")
-
-        # А. Считаем сырую одометрию по чанку
-        odo_lines = run_open3d_rgbd_odometry(chunk_info['data'], reader.K_small)
-
-        raw_path = f"data/output/trajectory/camera_only_trajectory_{key}.txt"
-        with open(raw_path, "w") as f:
-            for line in odo_lines:
-                f.write(line + "\n")
-        print(f"  -> Сырая одометрия сохранена в {raw_path}")
-
-        # Б. Выравниваем её методом Umeyama (Sim3 без оценки масштаба) по Pseudo-GT
-        aligned_path = f"data/output/trajectory/camera_only_aligned_{key}.txt"
-        print(f"  -> Выравнивание чанка по эталону Pseudo-GT...")
-        align_and_save_odometry(
-            odo_path=raw_path,
-            ref_path="data/output/trajectory/pseudo_gt_trajectory.txt",  # выравниваем по нашему единому Pseudo-GT
-            output_path=aligned_path
-        )
-
-    print("\n" + "=" * 80)
-    print("Расчет и выравнивание одометрии по всем 4-м чанкам успешно завершены!")
-    print("=" * 80)
+    # # ==========================================
+    # # 3. Калибровка сцены и доски (T_L_B)
+    # # ==========================================
+    # print("\n[Калибровка] Ищем маркеры доски (20, 21, 23) большой камерой...")
+    # stable_board_poses = None
+    # T_L_B = None
+    # all_T_L_B = []
+    #
+    # for frame in full_seq:
+    #     img = frame['large_rgb']
+    #     poses = estimate_aruco_pose(img, reader.K_large, reader.D_large, marker_size=0.09)
+    #
+    #     if 20 in poses and 21 in poses and 23 in poses:
+    #         if stable_board_poses is None:
+    #             stable_board_poses = poses
+    #
+    #         P_20 = poses[20][1].flatten()
+    #         P_21 = poses[21][1].flatten()
+    #         P_23 = poses[23][1].flatten()
+    #
+    #         X_B = (P_21 - P_20) / np.linalg.norm(P_21 - P_20)
+    #         v1 = P_21 - P_20
+    #         v2 = P_23 - P_20
+    #         Z_temp = np.cross(v1, v2)
+    #         if np.dot(Z_temp, -P_20) < 0:
+    #             Z_temp = -Z_temp
+    #         Z_B = Z_temp / np.linalg.norm(Z_temp)
+    #         Y_B = np.cross(Z_B, X_B)
+    #
+    #         mat_T = np.eye(4)
+    #         mat_T[:3, 0] = X_B
+    #         mat_T[:3, 1] = Y_B
+    #         mat_T[:3, 2] = Z_B
+    #         mat_T[:3, 3] = P_20
+    #         all_T_L_B.append(mat_T)
+    #
+    #         if len(all_T_L_B) >= 30:
+    #             break
+    #
+    # if not all_T_L_B:
+    #     print("Ошибка: Калибровочная доска не обнаружена. Пропускаем маркерные траектории.")
+    #     return
+    #
+    # # Усредняем и ортогонализируем T_L_B
+    # mean_T_L_B = np.mean(all_T_L_B, axis=0)
+    # U, _, Vt = np.linalg.svd(mean_T_L_B[:3, :3])
+    # mean_T_L_B[:3, :3] = U @ Vt
+    # T_L_B = mean_T_L_B
+    # T_B_L = np.linalg.inv(T_L_B)
+    # print("-> Положение доски T_B_L успешно рассчитано.")
+    #
+    # # ==========================================
+    # # 4. РАСЧЕТ ТРАЕКТОРИИ 1: Outside-In (Маркер id1)
+    # # ==========================================
+    # print("\n[Траектория 1] Запуск Outside-In трекинга...")
+    # outside_in_lines = []
+    # for frame in full_seq:
+    #     timestamp = frame['time']
+    #     img = frame['large_rgb']
+    #     poses = estimate_aruco_pose(img, reader.K_large, reader.D_large, marker_size=0.09)
+    #     if 1 in poses:
+    #         rvec, tvec = poses[1]
+    #         T_L_id1 = rvec_tvec_to_T(rvec, tvec)
+    #         T_B_id1 = T_B_L @ T_L_id1
+    #         outside_in_lines.append(T_to_TUM_format(T_B_id1, timestamp))
+    #
+    # out_file_1 = "data/output/trajectory/outside_in_trajectory.txt"
+    # with open(out_file_1, "w") as f:
+    #     for line in outside_in_lines:
+    #         f.write(line + "\n")
+    # print(f"-> Сохранено {len(outside_in_lines)} точек в {out_file_1}")
+    #
+    # # ==========================================
+    # # 5. РАСЧЕТ ТРАЕКТОРИИ 2: Inside-Out (Доска стола)
+    # # ==========================================
+    # board_corners_3d = calibrate_board_corners_3d(T_L_B, stable_board_poses, marker_size=0.09)
+    # print(f"-> Откалиброваны 3D углы для {len(board_corners_3d)} маркеров стола.")
+    # print("\n[Траектория 2] Запуск Inside-Out самолокализации...")
+    # inside_out_lines = run_inside_out_localization(
+    #     fast_rotating_90_deg_with_makers_chank+smooth_moves_with_markers_chank, board_corners_3d, reader.K_small, reader.D_small
+    # )
+    # out_file_2 = "data/output/trajectory/inside_out_trajectory.txt"
+    # with open(out_file_2, "w") as f:
+    #     for line in inside_out_lines:
+    #         f.write(line + "\n")
+    # print(f"-> Сохранено {len(inside_out_lines)} точек в {out_file_2}")
+    #
+    # # ==========================================
+    # # СБОРКА PSEUDO GROUND TRUTH (НОВЫЙ ШАГ)
+    # # ==========================================
+    # print("\n[Pseudo-GT] Сборка референсной траектории-эталона со сглаживанием...")
+    # build_and_save_pseudo_gt(
+    #     inside_out_path="data/output/trajectory/inside_out_trajectory.txt",
+    #     outside_in_path="data/output/trajectory/outside_in_trajectory.txt",
+    #     output_path="data/output/trajectory/pseudo_gt_trajectory.txt"
+    # )
+    #
+    #
+    # # =========================================================================
+    # # 6. ПОСЛЕДОВАТЕЛЬНЫЙ РАСЧЕТ ОДОМЕТРИИ ДЛЯ ВСЕХ 4-Х ЧАНКОВ
+    # # =========================================================================
+    # # Описываем ваши 4 выделенных чанка
+    # chunks_dict = {
+    #     "smooth_no_markers": {
+    #         "data": smooth_move_no_markers_chank,
+    #         "title": "Движение без маркеров"
+    #     },
+    #     "rotating_on_one_point": {
+    #         "data": rotating_on_one_point_chank,
+    #         "title": "Вращение на месте"
+    #     },
+    #     "fast_rotating_90": {
+    #         "data": fast_rotating_90_deg_with_makers_chank,
+    #         "title": "Быстрый разворот 90° с маркерами"
+    #     },
+    #     "smooth_with_markers": {
+    #         "data": smooth_moves_with_markers_chank,
+    #         "title": "Движение с маркерами"
+    #     }
+    # }
+    #
+    # print("\n" + "=" * 80)
+    # print("ЗАПУСК ВИЗУАЛЬНОЙ ОДОМЕТРИИ (Open3D) ДЛЯ 4-Х ВЫДЕЛЕННЫХ ЧАНКОВ ПО ОЧЕРЕДИ")
+    # print("=" * 80)
+    #
+    # for key, chunk_info in chunks_dict.items():
+    #     print(f"\n[Чанк: {chunk_info['title']}] Расчет RGB-D одометрии...")
+    #
+    #     # А. Считаем сырую одометрию по чанку
+    #     odo_lines = run_open3d_rgbd_odometry(chunk_info['data'], reader.K_small)
+    #
+    #     raw_path = f"data/output/trajectory/camera_only_trajectory_{key}.txt"
+    #     with open(raw_path, "w") as f:
+    #         for line in odo_lines:
+    #             f.write(line + "\n")
+    #     print(f"  -> Сырая одометрия сохранена в {raw_path}")
+    #
+    #     # Б. Выравниваем её методом Umeyama (Sim3 без оценки масштаба) по Pseudo-GT
+    #     aligned_path = f"data/output/trajectory/camera_only_aligned_{key}.txt"
+    #     print(f"  -> Выравнивание чанка по эталону Pseudo-GT...")
+    #     align_and_save_odometry(
+    #         odo_path=raw_path,
+    #         ref_path="data/output/trajectory/pseudo_gt_trajectory.txt",  # выравниваем по нашему единому Pseudo-GT
+    #         output_path=aligned_path
+    #     )
+    #
+    # print("\n" + "=" * 80)
+    # print("Расчет и выравнивание одометрии по всем 4-м чанкам успешно завершены!")
+    # print("=" * 80)
 
     # ==========================================
     # 7. ВИЗУАЛИЗАЦИЯ И СРАВНЕНИЕ ТРАЕКТОРИЙ
@@ -280,20 +280,31 @@ def main():
     print("Интерактивное окно открыто. Кликайте на подписи в легенде для включения/выключения линий.")
     plt.show()
 
-    # Загружаем траектории
+    # =========================================================================
+    # 7. ЗАГРУЗКА ТРАЕКТОРИЙ И РАСЧЕТ ОШИБОК ДЛЯ КАЖДОГО ЧАНКА
+    # =========================================================================
+    print("\n[Анализ] Загрузка траекторий для детального подсчета метрик ATE...")
+
     gt_path = "data/output/trajectory/pseudo_gt_trajectory.txt"
     inside_out_path = "data/output/trajectory/inside_out_trajectory.txt"
     outside_in_path = "data/output/trajectory/outside_in_trajectory.txt"
-    odo_path = "data/output/trajectory/camera_only_aligned_trajectory.txt"
 
-    if not all(os.path.exists(p) for p in [gt_path, inside_out_path, outside_in_path, odo_path]):
-        print("Ошибка: Не все файлы траекторий найдены. Сначала запустите run_pipeline.py!")
-        return
-
+    # Загружаем эталоны и маркерные позы
     gt_poses = load_tum_trajectory(gt_path)
     inside_out_poses = load_tum_trajectory(inside_out_path)
     outside_in_poses = load_tum_trajectory(outside_in_path)
-    odo_poses = load_tum_trajectory(odo_path)
+
+    # Указываем пути к 4-м выровненным файлам одометрии по чанкам
+    odo_fast_rotating_90_deg_path = "data/output/trajectory/camera_only_aligned_fast_rotating_90.txt"
+    odo_rotating_on_one_point_path = "data/output/trajectory/camera_only_aligned_rotating_on_one_point.txt"
+    odo_rotating_smooth_no_markers_path = "data/output/trajectory/camera_only_aligned_smooth_no_markers.txt"
+    odo_rotating_smooth_with_markers_path = "data/output/trajectory/camera_only_aligned_smooth_with_markers.txt"
+
+    # Загружаем одометрию по чанкам
+    odo_fast_rotating_poses = load_tum_trajectory(odo_fast_rotating_90_deg_path)
+    odo_rotating_one_point_poses = load_tum_trajectory(odo_rotating_on_one_point_path)
+    odo_smooth_no_markers_poses = load_tum_trajectory(odo_rotating_smooth_no_markers_path)
+    odo_smooth_with_markers_poses = load_tum_trajectory(odo_rotating_smooth_with_markers_path)
 
     # Считаем калибровку T_id1_S, чтобы спроецировать Outside-In траекторию на сенсор камеры
     T_id1_S = calibrate_head_to_sensor(inside_out_poses, outside_in_poses)
@@ -303,45 +314,73 @@ def main():
     for t, T_B_id1 in outside_in_poses.items():
         outside_in_projected_poses[t] = T_B_id1 @ T_id1_S
 
-    # Рассчитываем ошибки ATE для каждого метода относительно Pseudo-GT
-    t_odo, err_t_odo, err_r_odo = compute_trajectory_errors(odo_poses, gt_poses)
+    # Рассчитываем ошибки ATE для базовых методов
     t_out, err_t_out, err_r_out = compute_trajectory_errors(outside_in_projected_poses, gt_poses)
     t_in, err_t_in, err_r_in = compute_trajectory_errors(inside_out_poses, gt_poses)
 
-    # Вывод красивой Markdown таблицы в консоль
-    print("\n" + "=" * 116)
-    print(f"| {'Метод оценки траектории':<30} | {'Трансляция (мм)':<41} | {'Вращение (градусы)':<41} |")
+    # Рассчитываем ошибки ATE индивидуально для каждого чанка одометрии
+    t_odo_no_markers, err_t_odo_no_markers, err_r_odo_no_markers = compute_trajectory_errors(
+        odo_smooth_no_markers_poses, gt_poses)
+    t_odo_on_point, err_t_odo_on_point, err_r_odo_on_point = compute_trajectory_errors(odo_rotating_one_point_poses,
+                                                                                       gt_poses)
+    t_odo_fast_rot, err_t_odo_fast_rot, err_r_odo_fast_rot = compute_trajectory_errors(odo_fast_rotating_poses,
+                                                                                       gt_poses)
+    t_odo_with_markers, err_t_odo_with_markers, err_r_odo_with_markers = compute_trajectory_errors(
+        odo_smooth_with_markers_poses, gt_poses)
+
+    # Вывод красивой расширенной Markdown таблицы в консоль
+    print("\n" + "=" * 120)
+    print(f"| {'Метод оценки / Участок движения':<34} | {'Трансляция (мм)':<41} | {'Вращение (градусы)':<41} |")
     print(
-        f"| {'':<30} | {'Mean':^8} | {'Median':^8} | {'p95':^8} | {'RMSE':^8} | {'Mean':^8} | {'Median':^8} | {'p95':^8} | {'RMSE':^8} |")
-    print("-" * 116)
+        f"| {'':<34} | {'Mean':^8} | {'Median':^8} | {'p95':^8} | {'RMSE':^8} | {'Mean':^8} | {'Median':^8} | {'p95':^8} | {'RMSE':^8} |")
+    print("-" * 120)
     print_metrics_table("Inside-Out (Доска стола)", err_t_in, err_r_in)
-    print_metrics_table("Outside-In Projected (Маркер id1)", err_t_out, err_r_out)
-    print_metrics_table("Aligned Camera Odometry (VO)", err_t_odo, err_r_odo)
-    print("=" * 116 + "\n")
+    print_metrics_table("Outside-In Projected (id1)", err_t_out, err_r_out)
+    print("-" * 120)
+    print_metrics_table("VO: Чанк 1 (Вращение на месте)", err_t_odo_on_point, err_r_odo_on_point)
+    print_metrics_table("VO: Чанк 2 (Линейное без марк.)", err_t_odo_no_markers, err_r_odo_no_markers)
+    print_metrics_table("VO: Чанк 3 (Быстрый разворот 90°)", err_t_odo_fast_rot, err_r_odo_fast_rot)
+    print_metrics_table("VO: Чанк 4 (Линейное с маркерами)", err_t_odo_with_markers, err_r_odo_with_markers)
+    print("=" * 120 + "\n")
 
     # =========================================================================
     # ПОСТРОЕНИЕ ГРАФИКОВ ОШИБОК С ОТМЕТКАМИ ЧАНКОВ ВО ВРЕМЕНИ
     # =========================================================================
     fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(14, 11), sharex=True)
 
-    # 1. Отрисовка графиков ошибок
-    ax1.plot(t_out, err_t_out, label="Outside-In Projected (id1)", color="blue", alpha=0.7, linewidth=1.5)
-    ax1.plot(t_odo, err_t_odo, label="Aligned Camera Odometry (Open3D)", color="green", alpha=0.8, linewidth=1.5)
-    ax1.plot(t_in, err_t_in, label="Inside-Out (Доска стола)", color="red", alpha=0.6, linestyle="--", linewidth=1.5)
+    # 1. Отрисовка базовых методов на обоих графиках
+    ax1.plot(t_out, err_t_out, label="Outside-In Projected (id1)", color="blue", alpha=0.5, linewidth=1.2)
+    ax1.plot(t_in, err_t_in, label="Inside-Out (Доска стола)", color="red", alpha=0.4, linestyle="--", linewidth=1.2)
+
+    ax2.plot(t_out, err_r_out, label="Outside-In Projected (id1)", color="blue", alpha=0.5, linewidth=1.2)
+    ax2.plot(t_in, err_r_in, label="Inside-Out (Доска стола)", color="red", alpha=0.4, linestyle="--", linewidth=1.2)
+
+    # 2. Отрисовка индивидуальных чанков одометрии (разными цветами для наглядности)
+    # Чанк 2: Без маркеров
+    ax1.plot(t_odo_no_markers, err_t_odo_no_markers, label="VO: Без маркеров", color="#2ca02c", linewidth=2.0)
+    ax2.plot(t_odo_no_markers, err_r_odo_no_markers, label="VO: Без маркеров", color="#2ca02c", linewidth=2.0)
+
+    # Чанк 1: Вращение на месте
+    ax1.plot(t_odo_on_point, err_t_odo_on_point, label="VO: Вращение на месте", color="#8c564b", linewidth=2.0)
+    ax2.plot(t_odo_on_point, err_r_odo_on_point, label="VO: Вращение на месте", color="#8c564b", linewidth=2.0)
+
+    # Чанк 3: Быстрый разворот 90°
+    ax1.plot(t_odo_fast_rot, err_t_odo_fast_rot, label="VO: Быстрый разворот 90°", color="#bcbd22", linewidth=2.0)
+    ax2.plot(t_odo_fast_rot, err_r_odo_fast_rot, label="VO: Быстрый разворот 90°", color="#bcbd22", linewidth=2.0)
+
+    # Чанк 4: С маркерами
+    ax1.plot(t_odo_with_markers, err_t_odo_with_markers, label="VO: С маркерами", color="#17becf", linewidth=2.0)
+    ax2.plot(t_odo_with_markers, err_r_odo_with_markers, label="VO: С маркерами", color="#17becf", linewidth=2.0)
 
     ax1.set_ylabel("Ошибка трансляции ATE (мм)", fontsize=11)
     ax1.set_title("Сравнение ошибок траекторий ATE по выделенным чанкам движения", fontsize=13)
     ax1.grid(True, linestyle=":")
-    ax1.legend(fontsize=10, loc="upper left")
-
-    ax2.plot(t_out, err_r_out, label="Outside-In Projected (id1)", color="blue", alpha=0.7, linewidth=1.5)
-    ax2.plot(t_odo, err_r_odo, label="Aligned Camera Odometry (Open3D)", color="green", alpha=0.8, linewidth=1.5)
-    ax2.plot(t_in, err_r_in, label="Inside-Out (Доска стола)", color="red", alpha=0.6, linestyle="--", linewidth=1.5)
+    ax1.legend(fontsize=9, loc="upper left")
 
     ax2.set_xlabel("Время (секунды)", fontsize=11)
     ax2.set_ylabel("Ошибка вращения ATE (градусы)", fontsize=11)
     ax2.grid(True, linestyle=":")
-    ax2.legend(fontsize=10, loc="upper left")
+    ax2.legend(fontsize=9, loc="upper left")
 
     # Сначала обновим границы графиков, чтобы корректно рассчитать высоту подписей текста
     plt.draw()
@@ -430,16 +469,15 @@ def main():
         )
 
     plt.tight_layout()
-    output_img = "data/output/metrics/trajectory_errors_comparison.png"
-    plt.savefig(output_img, dpi=300)
-    print(f"График сравнения ошибок с аннотациями чанков сохранен в: {output_img}")
     plt.show()
 
-    # Дописать в самый конец main() в run_pipeline.py:
+    #  ДИАГНОСТИКА СБОЕВ ОДОМЕТРИИ
+    print("\n[Диагностика] Запуск оценки здоровья трекинга...")
+    from visualize_tracking_health import analyze_and_visualize_tracking_health
+    # Запускаем автоматический поиск по всему синхронизированному потоку!
+    analyze_and_visualize_tracking_health(full_seq)
 
-    # ==========================================
-    # 8. 3D РЕКОНСТРУКЦИЯ СЦЕНЫ
-    # ==========================================
+    # 3D РЕКОНСТРУКЦИЯ СЦЕНЫ
     print("\n[3D-Реконструкция] Запуск построения 3D моделей...")
     from reconstruct_scene import run_reconstruction_pipeline
     # Запускаем реконструкцию по непрерывному чистому чанку с маркерами
