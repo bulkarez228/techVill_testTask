@@ -82,3 +82,4 @@ https://github.com/user-attachments/assets/2a5d8f1d-98f6-4e8b-874e-92975d580f63
 
 <img width="800" height="615" alt="outside_in_trajectory" src="https://github.com/user-attachments/assets/78eecc50-25fe-4da1-966e-f0734f507c25" />
 
+На визуализации видно, что траектория Outside-in практичекси точно повторяет траекторию псевдо-эталон, но смещена на матрицу перехода от маркера на корпусе малой камеры до центра объектива малой камеры. 
