@@ -56,6 +56,7 @@ https://github.com/user-attachments/assets/2a5d8f1d-98f6-4e8b-874e-92975d580f63
  Траекторию псевдо-эталон в формате TUM можно найти [тут](![pseudo_gt_trajectory_preview-ezgif.com-video-to-gif-converter.gif](..%2Fpseudo_gt_trajectory_preview-ezgif.com-video-to-gif-converter.gif)).
  
  Математическая выкладка:
+
  
 ## Часть 1
 ### Camera-only трекинг
