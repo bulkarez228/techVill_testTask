@@ -472,10 +472,10 @@ def main():
     plt.show()
 
     #  ДИАГНОСТИКА СБОЕВ ОДОМЕТРИИ
-    print("\n[Диагностика] Запуск оценки здоровья трекинга...")
-    from visualize_tracking_health import analyze_and_visualize_tracking_health
-    # Запускаем автоматический поиск по всему синхронизированному потоку!
-    analyze_and_visualize_tracking_health(full_seq)
+    # print("\n[Диагностика] Запуск оценки здоровья трекинга...")
+    # from visualize_tracking_health import analyze_and_visualize_tracking_health
+    # # Запускаем автоматический поиск по всему синхронизированному потоку!
+    # analyze_and_visualize_tracking_health(fast_rotating_90_deg_with_makers_chank)
 
     # 3D РЕКОНСТРУКЦИЯ СЦЕНЫ
     print("\n[3D-Реконструкция] Запуск построения 3D моделей...")

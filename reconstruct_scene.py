@@ -82,10 +82,9 @@ def reconstruct_tsdf(sync_data, trajectory, intrinsic, voxel_size=0.015, sdf_tru
     return mesh
 
 
-def reconstruct_point_cloud_fusion(sync_data, trajectory, intrinsic, voxel_size=0.01):
+def reconstruct_point_cloud_fusion(sync_data, trajectory, intrinsic, voxel_size=0.025):
     """
-    Метод 2: Объединение облаков точек с фильтрацией шумов.
-    Если trajectory=None, используется единичная матрица (без использования траектории).
+    Метод 2: Плотное облако точек с отсечением фона и глубокой фильтрацией шумов.
     """
     fused_pcd = o3d.geometry.PointCloud()
 
@@ -118,8 +117,10 @@ def reconstruct_point_cloud_fusion(sync_data, trajectory, intrinsic, voxel_size=
         color = o3d.geometry.Image(rgb_rgb)
         depth = o3d.geometry.Image(frame['small_depth'])
 
+        # ВАЖНО: depth_trunc=1.3 отсекает все, что находится дальше 1.3 метров от камеры.
+        # Это сотрет задний фон комнаты и оставит только стол и стабилизатор!
         rgbd = o3d.geometry.RGBDImage.create_from_color_and_depth(
-            color, depth, depth_scale=1000.0, depth_trunc=3.0, convert_rgb_to_intensity=False
+            color, depth, depth_scale=1000.0, depth_trunc=1.3, convert_rgb_to_intensity=False
         )
 
         pcd = o3d.geometry.PointCloud.create_from_rgbd_image(rgbd, intrinsic)
@@ -129,8 +130,11 @@ def reconstruct_point_cloud_fusion(sync_data, trajectory, intrinsic, voxel_size=
     print(f"  [PCD] Успешно объединено кадров: {integrated_frames}")
 
     if len(fused_pcd.points) > 0:
+        # Применяем разреживание точек (шаг 2.5 см)
         fused_pcd = fused_pcd.voxel_down_sample(voxel_size)
-        cl, ind = fused_pcd.remove_statistical_outlier(nb_neighbors=30, std_ratio=1.5)
+
+        # Агрессивная фильтрация шума (std_ratio=1.0)
+        cl, ind = fused_pcd.remove_statistical_outlier(nb_neighbors=40, std_ratio=1.0)
         fused_pcd = fused_pcd.select_by_index(ind)
         fused_pcd.estimate_normals()
 
@@ -159,20 +163,20 @@ def run_reconstruction_pipeline(sync_data, K_small):
         K_small_scaled[0, 2], K_small_scaled[1, 2]
     )
 
-    # Путь кOutside-In траектории
-    outside_in_path = "data/output/trajectory/inside_out_trajectory.txt"
+    # Путь inside_out траектории
+    inside_out_path = "data/output/trajectory/inside_out_trajectory.txt"
 
-    if not os.path.exists(outside_in_path):
-        print(f"Ошибка: Файл '{outside_in_path}' не найден в рабочей директории.")
+    if not os.path.exists(inside_out_path):
+        print(f"Ошибка: Файл '{inside_out_path}' не найден в рабочей директории.")
         return
 
-    outside_in_traj = load_tum_trajectory(outside_in_path)
-    print(f"\n[Загрузка траектории]: Загружено точек Outside-In: {len(outside_in_traj)}")
+    outside_in_traj = load_tum_trajectory(inside_out_path)
+    print(f"\n[Загрузка траектории]: Загружено inside_out_path Outside-In: {len(outside_in_traj)}")
 
     # =========================================================================
     # ГРУППА 1: РЕКОНСТРУКЦИЯ ВООБЩЕ БЕЗ ИСПОЛЬЗОВАНИЯ ТРАЕКТОРИИ (T = I)
     # =========================================================================
-    print("\n=== Группа 1: Реконструкция ВООБЩЕ БЕЗ траектории ===")
+    print("\n=== Группа 1: Реконструкция без траектории ===")
 
     # Вывод 1: TSDF-сетка без траектории
     print("[Вывод 1/4] TSDF Mesh без траектории...")
@@ -199,33 +203,25 @@ def run_reconstruction_pipeline(sync_data, K_small):
     pcd_with_prior = reconstruct_point_cloud_fusion(sync_data, outside_in_traj, intrinsic)
     o3d.io.write_point_cloud("data/output/3d/method2_pcd_fusion_with_prior.ply", pcd_with_prior)
 
-    # =========================================================================
-    # ПОСЛЕДОВАТЕЛЬНАЯ ВИЗУАЛИЗАЦИЯ 4-Х ВЫВОДОВ
-    # =========================================================================
-    print("\n" + "=" * 50)
-    print("Запуск визуализации 4-х выводов по очереди...")
-    print("=" * 50)
+    # ВИЗУАЛИЗАЦИЯ
 
     if len(mesh_no_traj.vertices) > 0:
-        print("\n[Окно 1/4] Метод 1: TSDF Mesh ВООБЩЕ БЕЗ ТРАЕКТОРИИ")
+        print("\nМетод 1: TSDF Mesh без траектории")
         o3d.visualization.draw_geometries([mesh_no_traj], window_name="1/4: TSDF Mesh - NO Trajectory", width=1024,
-
-                                              height=768)
+                                          height=768)
 
     if len(mesh_with_prior.vertices) > 0:
-        print("\n[Окно 3/4] Метод 1: TSDF Mesh С OUTSIDE-IN ТРАЕКТОРИЕЙ")
+        print("\nМетод 1: TSDF Mesh с OUTSIDE-IN траекторией")
         o3d.visualization.draw_geometries([mesh_with_prior], window_name="3/4: TSDF Mesh - WITH Outside-In", width=1024,
                                           height=768)
 
     if len(pcd_no_traj.points) > 0:
-        print("\n[Окно 2/4] Метод 2: Point Cloud ВООБЩЕ БЕЗ ТРАЕКТОРИИ")
+        print("\nМетод 2: Point Cloud без траектории")
         o3d.visualization.draw_geometries([pcd_no_traj], window_name="2/4: Point Cloud - NO Trajectory", width=1024,
                                           height=768)
 
 
     if len(pcd_with_prior.points) > 0:
-        print("\n[Окно 4/4] Метод 2: Point Cloud С OUTSIDE-IN ТРАЕКТОРИЕЙ")
+        print("\nМетод 2: Point Cloud с OUTSIDE-IN траекторией")
         o3d.visualization.draw_geometries([pcd_with_prior], window_name="4/4: Point Cloud - WITH Outside-In",
                                           width=1024, height=768)
-
-    print("\nПроцесс 3D-реконструкции успешно завершен.")
