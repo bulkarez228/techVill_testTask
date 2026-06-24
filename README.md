@@ -103,12 +103,14 @@ https://github.com/user-attachments/assets/2a5d8f1d-98f6-4e8b-874e-92975d580f63
     ==============================================================================================================================
 
 Так же приведем график абсолютной ошибки от времени для всех методов. 
-![error_to_time_graph.png](content_for_readme\error_to_time_graph.png)
+<img width="1400" height="1100" alt="error_to_time_graph" src="https://github.com/user-attachments/assets/c51a63df-9c76-4e9d-b9b3-1e40b8e85d16" />
+
 
  - **Метод Inside-out** показывает лучший результат по всем параметрам. Но на графиках видно, что он достаточно сильно шумит. Основные слабые места данного метода - позиция и расстояние до маркера. 
 Чем дальше маркер - тем меньше пискелей на кадре он занимает, а значит и ниже точность. Возникает явление субпиксельного шума. Так же данный метод плохо работает при быстрых движениях и поворотах из-за смаза кадра.
  
-   ![blurred_frame.png](content_for_readme\blurred_frame.png)
+   <img width="264" height="206" alt="blurred_frame" src="https://github.com/user-attachments/assets/3184c641-9f84-4b3f-abe3-fd3779d15bbb" />
+
     
     Пример смазанного кадра. 
 
@@ -122,13 +124,16 @@ https://github.com/user-attachments/assets/2a5d8f1d-98f6-4e8b-874e-92975d580f63
  алгоритм дает большую ошибку на кадрах без движения, связано это с тем, что при отсутствии движения вырождается геометрическая оптимизация
  и из-за этого реальный поворот не считывается.
 
- ![depth_camera_noise.gif](content_for_readme\depth_camera_noise.gif)
+ <img width="800" height="160" alt="depth_camera_noise" src="https://github.com/user-attachments/assets/d5866fd5-917e-4d11-9b52-b4e1e57adba2" />
+
  Шум камеры глубины.
 
- ![diagnostic_best_tracking_health.png](content_for_readme\diagnostic_best_tracking_health.png)
+ <img width="2560" height="800" alt="diagnostic_best_tracking_health" src="https://github.com/user-attachments/assets/6564bba1-3d5a-4ff5-a96a-ed03247d95bb" />
+
   Кадр с хорошей текстурой (много контрастных точек).
 
-  ![diagnostic_worst_tracking_health.png](content_for_readme\diagnostic_worst_tracking_health.png)
+  <img width="2560" height="800" alt="diagnostic_worst_tracking_health" src="https://github.com/user-attachments/assets/a8cc66c7-cff3-44ac-b6bb-f6a6c77c0250" />
+
   Кадр с плохой текстурой и скачком.
 
   Для улучшения оценки траектории методом RGB-D одометрии можно попробовать снизить шум на depth сенсоре камеры, 
@@ -137,10 +142,11 @@ https://github.com/user-attachments/assets/2a5d8f1d-98f6-4e8b-874e-92975d580f63
 
 ## Часть 2. 3D-реконструкция сцены
 Для реконструкции были использованы два метода: Point cloud fusion (накладывание облака точек друг на друга на каждом кадре) и TSDF Integration (реконструкция с помощью воксельной сетки). Каждый из методов был задействован как с траекторией, так и без. Посмотрим на визуализации 3D-сцен. Был выбран чанк с плавным движением с маркером.
-![tsdf_comp.gif](content_for_readme\tsdf_comp.gif)
+<img width="800" height="307" alt="tsdf_comp (2)" src="https://github.com/user-attachments/assets/eab13828-8ae3-43c5-84f6-9e137a2dc39a" />
+
 Реконструкция с помощью метода TSDF без траектории в качестве prior (слева) и с prior (справа).
 
-![point_cloud_fusion_cmp.gif](content_for_readme\point_cloud_fusion_cmp.gif)
+<img width="800" height="307" alt="point_cloud_fusion_cmp" src="https://github.com/user-attachments/assets/5f1e55e6-36a6-434a-851c-546c4ac068ca" />
 Реконструкция с помощью метода Point Cloud Fusion без траектории в качестве prior (слева) и с prior (справа).
 
  Для метода TSDF траектория улучшила качество поверхностей, убрало рябь, объекты стали иметь более ясные контуры.   
